@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="description"
+        content="BigSmall">
+  <meta name="keywords" content="BigSmall, Physiological Sensing, Facial Action Units, Photoplethysmography, Respiration">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>
+    BigSmall
+  </title>
+
+  <!-- Global site tag (gtag.js) - Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-PYVRSFMDRL"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+
+    function gtag() {
+      dataLayer.push(arguments);
+    }
+
+    gtag('js', new Date());
+
+    gtag('config', 'G-PYVRSFMDRL');
+  </script>
+
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro"
+        rel="stylesheet">
+
+  <link rel="stylesheet" href="./static/css/bulma.min.css">
+  <link rel="stylesheet" href="./static/css/bulma-carousel.min.css">
+  <link rel="stylesheet" href="./static/css/bulma-slider.min.css">
+  <link rel="stylesheet" href="./static/css/fontawesome.all.min.css">
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+  <link rel="stylesheet" href="./static/css/index.css">
+  <link rel="icon" href="./static/images/favicon.svg">
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script defer src="./static/js/fontawesome.all.min.js"></script>
+  <script src="./static/js/bulma-carousel.min.js"></script>
+  <script src="./static/js/bulma-slider.min.js"></script>
+  <script src="./static/js/index.js"></script>
+</head>
+<body>
+
+<nav class="navbar" role="navigation" aria-label="main navigation">
+  <div class="navbar-brand">
+    <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false">
+      <span aria-hidden="true"></span>
+      <span aria-hidden="true"></span>
+      <span aria-hidden="true"></span>
+    </a>
+  </div>
+
+    </div>
+
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-body">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered">
+        <div class="column has-text-centered">
+          <h1 class="title is-1 publication-title">BigSmall:</h1>
+          <h1 class="title is-1 publication-title">Efficient Multi-Task Learning <br> For Physiological Measurements</h1>
+          <div class="is-size-5 publication-authors">
+            <span class="author-block">
+              <a href="https://girishvn.github.io/">Girish Narayanswamy</a><sup>1</sup>,</span>
+            <span class="author-block">
+              <a href="https://www.linkedin.com/in/yujianancyliu/">Yujia (Nancy) Liu</a><sup>1</sup>,</span>
+            <span class="author-block">
+              <a href="https://www.mit.edu/~yuzhe/">Yuzhe Yang</a><sup>2</sup>,
+            </span>
+            <span class="author-block">
+              <a href="https://www.linkedin.com/in/chengqian-ma-356566162/">Chengqian (Jack) Ma</a><sup>1</sup>,
+            </span>
+            <br>
+            <span class="author-block">
+              <a href="https://www.danbgoldman.com">Xin Liu</a><sup>1</sup>,
+            </span>
+            <span class="author-block">
+              <a href="http://alumni.media.mit.edu/~djmcduff/"> Daniel McDuff</a><sup>1</sup>,
+            </span>
+            <span class="author-block">
+              <a href="https://www.cs.washington.edu/people/faculty/shwetak">Shwetak Patel</a><sup>1</sup>
+            </span>
+          </div>
+
+          <div class="is-size-5 publication-authors">
+            <span class="author-block"><sup>1</sup>University of Washington,</span>
+            <span class="author-block"><sup>2</sup>Massachusetts Institute of Technology</span>
+          </div>
+
+          <div class="column has-text-centered">
+            <div class="publication-links">
+              <!-- PDF Link. -->
+              <span class="link-block">
+                <a href="./static/paper/BigSmall_Arxiv.pdf"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="fas fa-file-pdf"></i>
+                  </span>
+                  <span>Paper</span>
+                </a>
+              </span>
+
+              <!-- Code Link. -->
+              <span class="link-block">
+                <a href="https://github.com/google/nerfies"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="fab fa-github"></i>
+                  </span>
+                  <span>Code</span>
+                  </a>
+              </span>
+
+              <!-- Arxiv Link. -->
+              <span class="link-block">
+                <a href=""
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="ai ai-arxiv"></i>
+                  </span>
+                  <span>arXiv</span>
+                </a>
+              </span>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="hero teaser">
+  <div class="container is-max-desktop">
+    <div class="hero-body">
+      <div class="teaser-vids">
+        <video id="teaser1" autoplay muted loop playsinline height="100%">
+          <source src="./static/videos/bigsmall_ex1.mp4" type="video/mp4">
+        </video>
+        <video id="teaser2" autoplay muted loop playsinline height="100%">
+          <source src="./static/videos/bigsmall_ex2.mp4" type="video/mp4">
+        </video>
+      </div>
+      <h2 class="subtitle has-text-centered">
+        <span class="dnerf">BigSmall</span> is an efficient network architecture for multi-task physiological sensing. The network concurrently derives 
+        photoplethysmography (pulse), respiration, and action unit signals. 
+      </h2>
+    </div>
+  </div>
+</section>
+
+
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <!-- Abstract. -->
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Abstract</h2>
+        <div class="content has-text-justified">
+          <p>
+            Understanding of human visual perception has historically inspired the design of computer vision 
+            architectures. As an example, perception occurs at different scales both spatially and temporally, 
+            suggesting that the extraction of salient visual information may be made more effective by paying 
+            attention to specific features at varying scales. Visual changes in the body due to physiological 
+            processes also occur at different scales and with modality-specific characteristic properties. 
+            Inspired by this, we present BigSmall, an efficient architecture for physiological and behavioral measurement. 
+          </p>
+          <p>
+            We present the first joint camera-based facial action, cardiac, and pulmonary measurement model. 
+            We propose a multi-branch network with wrapping temporal shift modules that yields both accuracy 
+            and efficiency gains. We observe that fusing low-level features leads to suboptimal performance, 
+            but that fusing high level features enables efficiency gains with negligible loss in accuracy. 
+            Experimental results demonstrate that BigSmall significantly reduces the computational costs. 
+            Furthermore, compared to existing task-specific models, BigSmall achieves comparable or better 
+            results on multiple physiological measurement tasks simultaneously with a unified model.
+          </p>
+        </div>
+      </div>
+    </div>
+    <!--/ Abstract. -->
+
+    <!--/ Paper video. -->
+  </div>
+</section>
+
+
+<section class="section">
+  <div class="container is-max-desktop">
+
+    <!-- Model Arch. -->
+    <div class="columns is-centered">
+      <div class="column is-full-width">
+        <h2 class="title is-3">Model Architecture</h2>
+
+        <div class="content has-text-justified">
+          <p>
+            <span class="dnerf">BigSmall</span> leverages a dual branch architecture, consisting of a Big branch to model 
+            high fidelity spatial features using high-resolution raw-frame inputs, and a Small branch to model temporal dynamics 
+            using low-resolution difference-frame inputs.
+          </p>
+
+          <img src="./static/images/BS_Network_Arch.svg" alt="BS">
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Computational Efficiency -->
+    <div class="columns is-centered">
+      <div class="column is-full-width">
+        <h2 class="title is-3">Computational Efficiency: Big Branch Downsampling</h2>
+
+        <div class="content has-text-justified">
+          <p>
+            <span class="dnerf">BigSmall</span> frames the Big branch as a means to model relatively low-frequency 
+            spatial signals, while the Small branch models relatively high-frequency temporals. 
+            <span class="dnerf">BigSmall</span> is thus able to temporally-downsample the Big branch inputs to a fraction of the 
+            inputs seen by the Small branch. As compute of the model is driven by the Big branch convolutions, this downsampling
+            results in a significant compute benefit. Sepcifically, if the Big branch sees 1/N frames seen by the Small branch
+            the compute is reduced by a factor of approximately N. 
+          </p>
+
+          <img src="./static/images/BigBranch_DownSample.svg" alt="BigDS">
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Temporal Modeling -->
+    <div class="columns is-centered">
+      <div class="column is-full-width">
+        <h2 class="title is-3"> Efficiencient Temporal Modeling: Small Branch WTSMs</h2>
+
+        <div class="content has-text-justified">
+          <p>
+            <span class="dnerf">BigSmall</span> introduces Wrapping Temporal Shift Modules (WTSM), which allow for inter-frame 
+            information sharing, thus allowing for more robhust temporal modeling in the Small branch. Unlike traditional 
+            <a href="https://arxiv.org/abs/1811.08383">TSMs</a>, WTSMs wrap shifted-out frame channels to eliminate zero-filled
+            feature maps. This allows for augmented temporals even when latency constraints are high or training-regiments 
+            neccessitate high training batch variance.
+          </p>
+
+          <img src="./static/images/WTSM.svg" alt="WTSM">
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Concurrent Work. -->
+    <div class="columns is-centered">
+      <div class="column is-full-width">
+        <h2 class="title is-3">Related Links</h2>
+
+        <div class="content has-text-justified">
+          <p>
+            The data pre-processsing scripts, machine-learning pipeline, network architevtures, evaluation methods, and 
+            pre-trained models can be found at our <a href="https://github.com/ubicomplab/rPPG-Toolbox">GitHub Repository</a>. 
+            This code is licensed under the MIT License. If you end up making use of any of these material please make sure to cite our paper!
+          </p>
+
+          <p>
+            The machine learning pipeline for this work as been adapted from the 
+            <a href="https://github.com/ubicomplab/rPPG-Toolbox">rPPG-Toolbox</a>, a project to make deep-physiological sensing 
+            research more standardized and accessible. The publication for this work can be found 
+            <a href="https://arxiv.org/abs/2210.00716">here</a>.    
+          </p>
+        </div>
+      </div>
+    </div>
+    <!--/ Concurrent Work. -->
+
+  </div>
+</section>
+
+
+<section class="section" id="BibTeX">
+  <div class="container is-max-desktop content">
+    <h2 class="title">BibTeX</h2>
+    <pre><code>Coming Soon!
+</code></pre>
+  </div>
+</section>
+
+
+<footer class="footer">
+  <div class="container">
+    <div class="content has-text-centered">
+      <a class="icon-link"
+         href="./static/paper/BigSmall_Arxiv.pdf">
+        <i class="fas fa-file-pdf"></i>
+      </a>
+      <a class="icon-link" href="https://github.com/girishvn" class="external-link" disabled>
+        <i class="fab fa-github"></i>
+      </a>
+    </div>
+    <div class="columns is-centered">
+      <div class="column is-8">
+        <div class="content">
+          <p>
+            This website is licensed under a 
+            <a rel="license" href="http://creativecommons.org/licenses/by-sa/4.0/">
+            Creative Commons Attribution-ShareAlike 4.0 International License</a>.
+          </p>
+          <p>
+            The source code for this site was adapted from 
+            <a href="https://github.com/nerfies/nerfies.github.io">this work</a>.
+            If you decide to use this web template please make sure to link their work!
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
