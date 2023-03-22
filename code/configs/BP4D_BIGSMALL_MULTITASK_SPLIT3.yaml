@@ -1,0 +1,121 @@
+
+BASE: ['']
+TOOLBOX_MODE: "only_test"      # "train_and_test"  or "only_test" or "only_preprocess"
+
+################################################
+# DATA SETTINGS
+################################################
+DATA:
+  TRAIN:
+    FS: 25
+    DATASET: BP4DBigSmall
+    DO_PREPROCESS: False               # if first time, should be true
+    DATA_FORMAT: NDCHW
+    DATA_PATH: '/gscratch/ubicomp/girishvn/datasets/BP4D_plus/BP4DPlus_AUSubset'
+    CACHED_PATH: "/gscratch/ubicomp/girishvn/rppg/rppg_datasets/PreprocessedData/"    # Processed dataset save path, need to be updated
+    FILE_LIST_PATH: "/gscratch/ubicomp/girishvn/rppg/rppg_datasets/PreprocessedData/DataFileLists/BP4D_Clip3_AUSubset_3Fold/BP4D_Big144RawStd_Small9DiffNorm_LabelDiffNorm_ClipLen3_AUSubset_Rand_Split3_Train.csv"
+    EXP_DATA_NAME: "BP4DPlus_Big144RawStd_Small9DiffNorm_ClipLen3_AUSubset"
+    BEGIN: 0.0
+    END: 0.8
+
+  VALID:
+    FS: 25
+    DATASET: BP4DBigSmall
+    DO_PREPROCESS: False                  # if first time, should be true
+    DATA_FORMAT: NDCHW
+    DATA_PATH: '/gscratch/ubicomp/girishvn/datasets/BP4D_plus/BP4DPlus_AUSubset'
+    CACHED_PATH: "/gscratch/ubicomp/girishvn/rppg/rppg_datasets/PreprocessedData/"    # Processed dataset save path, need to be updated
+    FILE_LIST_PATH: "/gscratch/ubicomp/girishvn/rppg/rppg_datasets/PreprocessedData/DataFileLists/BP4D_Clip3_AUSubset_3Fold/BP4D_Big144RawStd_Small9DiffNorm_LabelDiffNorm_ClipLen3_AUSubset_Rand_Split3_Test.csv"
+    EXP_DATA_NAME: "BP4DPlus_Big144RawStd_Small9DiffNorm_ClipLen3_AUSubset"
+    BEGIN: 0.8
+    END: 1.0
+
+  TEST:
+    FS: 25
+    DATASET: BP4DBigSmall
+    DO_PREPROCESS: False                    # if first time, should be true
+    DATA_FORMAT: NDCHW
+    DATA_PATH: '/gscratch/ubicomp/girishvn/datasets/BP4D_plus/BP4DPlus_AUSubset'
+    CACHED_PATH: "/gscratch/ubicomp/girishvn/rppg/rppg_datasets/PreprocessedData/"    # Processed dataset save path, need to be updated
+    FILE_LIST_PATH: "/gscratch/ubicomp/girishvn/rppg/rppg_datasets/PreprocessedData/DataFileLists/BP4D_Clip3_AUSubset_3Fold/BP4D_Big144RawStd_Small9DiffNorm_LabelDiffNorm_ClipLen3_AUSubset_Rand_Split3_Test.csv"
+    EXP_DATA_NAME: "BP4DPlus_Big144RawStd_Small9DiffNorm_ClipLen3_AUSubset"
+    BEGIN: 0.8
+    END: 1.0
+
+  PREPROCESS:
+    GLOBAL_PREPROCESS_SETTINGS: True
+    DATA_TYPE: ['Normalized', 'Standardized'] # actually may be different for big and small branches
+    LABEL_TYPE: Normalized
+    DO_CHUNK: True
+    CHUNK_LENGTH: 3 # 1
+    DYNAMIC_DETECTION: False
+    DYNAMIC_DETECTION_FREQUENCY : 180
+    CROP_FACE: True
+    LARGE_FACE_BOX: True
+    LARGE_BOX_COEF: 1.5
+    H: 256 # actually should be [144, 36]
+    W: 256 # actually should be [144, 36]
+
+  LABELS: 
+    GLOBAL_LABELS_SETTINGS: True
+    LABEL_LIST: 
+      ['bp_wave', 'HR_bpm', 'systolic_bp', 'diastolic_bp', 'mean_bp', 'resp_wave', 'resp_bpm', 'eda', 
+      'AU01', 'AU02', 'AU04', 'AU05', 'AU06', 'AU06int', 'AU07', 'AU09', 'AU10', 'AU10int', 'AU11', 'AU12', 'AU12int', 
+      'AU13', 'AU14', 'AU14int', 'AU15', 'AU16', 'AU17', 'AU17int', 'AU18', 'AU19', 'AU20', 'AU22', 'AU23', 'AU24', 
+      'AU27', 'AU28', 'AU29', 'AU30', 'AU31', 'AU32', 'AU33', 'AU34', 'AU35', 'AU36', 'AU37', 'AU38', 'AU39',
+      'pos_bvp','pos_env_norm_bvp']
+    USED_LABELS:
+      ['AU01', 'AU02', 'AU04', 'AU06', 'AU07', 'AU10', 'AU12',
+      'AU14', 'AU15', 'AU17', 'AU23', 'AU24', 
+      'pos_env_norm_bvp', 'resp_wave']
+
+
+################################################
+# ML MODELING SETTINGS
+################################################
+MODEL_SPECS:
+  MODEL:
+    NAME: BigSmallMultitask
+
+  TRAIN:
+    DATA_AUG: False
+
+    EPOCHS: 5
+    BATCH_SIZE: 180 
+    LOSS_NAME: 'MSE'
+    LR: 1e-3 
+
+    GRAD_SURGERY: False
+    OCLR_SCHEDULER: False
+
+    MODEL_FILE_NAME: BP4D_BigSmall_Split3 # Change this everytime  the model changes
+
+  VALID:
+    RUN_VALIDATION: True
+  
+  TEST:
+    BVP_METRICS: ['MAE','RMSE','MAPE','Pearson']
+    RESP_METRICS: ['MAE','RMSE','MAPE','Pearson']
+    AU_METRICS: ['12AUF1']
+    EVALUATION_METHOD: FFT # "FFT" or "peak detection"
+    MODEL_TO_USE: 'last_epoch' # can be 'last_epoch' or 'best_epoch'
+    MODEL_PATH: "./pretrained_models/BP4D_BigSmall_Multitask_Clip3_Split3_Epoch4.pth"
+
+
+################################################
+# COMPUTE RESOURCE SETTINGS
+################################################
+DEVICE: cuda:0
+NUM_OF_GPU_TRAIN: 2 #2 use single GPU to plot attention masks
+
+################################################
+# LOG SETTINGS
+################################################
+LOG:
+  PATH: runs/exp
+SAVE_DATA:
+  SAVE_DATA: True # switch for AU
+  SAVE_TEST: False
+  SAVE_TRAIN: False
+  SAVE_METRICS: True
+  PATH: './output_files/BigSmall_Split3.pickle'
