@@ -3,7 +3,7 @@ BigSmall: Efficient Multi-Task Learning for Disparate Spatial and Temporal Physi
 
 [Pre-print](https://arxiv.org/abs/2303.11573) | [Project Website](https://girishvn.github.io/BigSmall/)
 
-![Examples of Multitask PPG, Respiration, and Facial Action Prediction From Video.](./static/videos/bigsmall_ex1.gif)
+<img src="./static/videos/bigsmall_ex1.gif" width="600"/>
 
 # Abstract
 Understanding of human visual perception has historically inspired the design of computer vision 
