@@ -24,7 +24,7 @@ results on multiple physiological measurement tasks simultaneously with a unifie
 
 
 # About The Code Base
-This Code base was adapted from rPPG-Toolbox (https://github.com/ubicomplab/rPPG-Toolbox). All code for dataset preprocessing, training, evaluation, model architectures, and pretrained models may be found in the `./code` directory.
+This Code base was adapted from the [rPPG-Toolbox](https://github.com/ubicomplab/rPPG-Toolbox). All code for dataset preprocessing, training, evaluation, model architectures, and pretrained models may be found in the `./code` directory.
 The code has a seperate ReadMe w/ a more comprehensive explanation of how to use/run the software. 
 
 
@@ -36,10 +36,10 @@ Links to our paper and citations will be added soon. Please make sure to cite ou
 
 # About The Website
 A website for this work, including an overview of the paper and links to the paper can be found at: 
-`https://girishvn.github.io/BigSmall/`
+[here](https://girishvn.github.io/BigSmall/).
 
 Code for this can be found in `index.html` and `./static`. This code was adapted from 
-`https://github.com/nerfies/nerfies.github.io`
+[here](https://github.com/nerfies/nerfies.github.io).
 
 
 
