@@ -35,7 +35,7 @@ We provide preprocessing code for the BP4D+ dataset. This code can be adapated f
 Note, that due to the size of BP4D+ (~6TB), the data was pre-preprocessed to better run on our server. The preprocessing entailes: 
 
 0. Download the BP4D+ raw data by asking the paper authors: 
-`https://www.cs.binghamton.edu/~lijun/Research/3DFE/3DFE_Analysis.html`
+https://www.cs.binghamton.edu/~lijun/Research/3DFE/3DFE_Analysis.html
 
 1. Pushing all frame and label information, per-video trial, into a `.mat` file format (this can be read as a dictionary like structure in python). 
 
