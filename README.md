@@ -32,12 +32,14 @@ The code has a seperate ReadMe w/ a more comprehensive explanation of how to use
 # Citation: 
 Please make sure to cite our work if you find it of use. Thanks!
 
-```@article{narayanswamy2023bigsmall,
+```
+@article{narayanswamy2023bigsmall,
   title={BigSmall: Efficient Multi-Task Learning for Disparate Spatial and Temporal Physiological Measurements},
   author={Narayanswamy, Girish and Liu, Yujia and Yang, Yuzhe and Ma, Chengqian and Liu, Xin and McDuff, Daniel and Patel, Shwetak},
   journal={arXiv preprint arXiv:2303.11573},
   year={2023}
-}```
+}
+```
 
 
 
