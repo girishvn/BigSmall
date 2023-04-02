@@ -1,37 +1,253 @@
 from multiprocessing import Pool, Process, Value, Array, Manager
 import glob
 import os
+
 from tqdm import tqdm
 from dataset.data_loader.BaseLoader import BaseLoader
-import mat73
-import numpy as np
 import cv2
+
+import numpy as np
 import pickle
 
+import hdf5storage as hdf5
 
 
 
-# TODO SWITCH FOR OTHER DATASETS
-def read_video(file_path):
+############################################
+####### Generating Psuedo POS Labels #######
+############################################
+
+# CALCULATE AVG R/G/B VALUE FOR EACH FRAME
+def rgb_process_video(frames):
+    """Calculates the average value of each frame."""
+    RGB = []
+    for frame in frames:
+        summation = np.sum(np.sum(frame, axis=0), axis=0)
+        RGB.append(summation / (frame.shape[0] * frame.shape[1]))
+    return np.asarray(RGB)
+
+
+
+# REMMOVE SIGNAL LINEAR TRENDS (SOMEWHAT SIMILLAR TO LOW-PASS FILTERING
+def detrend(input_signal, lambda_value):
+    signal_length = input_signal.shape[0]
+    # observation matrix
+    H = np.identity(signal_length)
+    ones = np.ones(signal_length)
+    minus_twos = -2 * np.ones(signal_length)
+    diags_data = np.array([ones, minus_twos, ones])
+    diags_index = np.array([0, 1, 2])
+    D = sparse.spdiags(diags_data, diags_index,
+                (signal_length - 2), signal_length).toarray()
+    filtered_signal = np.dot(
+        (H - np.linalg.inv(H + (lambda_value ** 2) * np.dot(D.T, D))), input_signal)
+    return filtered_signal
+
+
+
+# PLANE ORTHOGONAL TO SKIN RPPG METHOD
+def POS_WANG(frames, fs):
+    WinSec = 1.6
+    RGB = rgb_process_video(frames)
+    N = RGB.shape[0]
+    H = np.zeros((1, N))
+    l = math.ceil(WinSec * fs)
+
+    for n in range(N):
+        m = n - l
+        if m >= 0:
+            Cn = np.true_divide(RGB[m:n, :], np.mean(RGB[m:n, :], axis=0))
+            Cn = np.mat(Cn).H
+            S = np.matmul(np.array([[0, 1, -1], [-2, 1, 1]]), Cn)
+            h = S[0, :] + (np.std(S[0, :]) / np.std(S[1, :])) * S[1, :]
+            mean_h = np.mean(h)
+            for temp in range(h.shape[1]):
+                h[0, temp] = h[0, temp] - mean_h
+            H[0, m:n] = H[0, m:n] + (h[0])
+
+    BVP = H
+    BVP = detrend(np.mat(BVP).H, 100)
+    BVP = np.asarray(np.transpose(BVP))[0]
+    # b, a = signal.butter(1, [0.75 / fs * 2, 3 / fs * 2], btype='bandpass')
+    # BVP = signal.filtfilt(b, a, BVP.astype(np.double))
+    return BVP
+
+
+
+# ITERATE THROUGH DATASET AND GENERATE BVP PSUEDO LABELS
+def generate_psuedo_labels(data_dict):
+
+    print('Generating POS Psuedo BVP Labels...')
+
+    # READ VIDEO FRAMES
+    x = data_dict['X'] # read in video frames
+
+    # GENERATE POS PPG SIGNAL
+    fs = 25 # bp4d sampling rate: 25hz
+    bvp = POS_WANG(x, fs) # generate POS PPG signal
+    bvp = np.array(bvp)
+
+    # AGGRESSIVELY FILTER PPG SIGNAL
+    hr_arr = data_dict['HR_bpm'] # get hr freq from GT label
+    avg_hr_bpm = np.sum(hr_arr)/len(hr_arr) # calculate avg hr for the entire trial
+    hr_freq = avg_hr_bpm / 60 # divide beats per min by 60, to get beats pers secone
+    halfband = 20 / fs # half bandwith to account for HR variation (accounts for +/- 20 bpm variation from mean HR)
+
+    # MAX BANDWIDTH [0.70, 3]Hz = [42, 180]BPM (BANDWIDTH MAY BE SMALLER)
+    min_freq = hr_freq - halfband # calculate min cutoff frequency
+    if min_freq < 0.70:
+        min_freq = 0.70
+    max_freq = hr_freq + halfband # calculate max cutoff frequency
+    if max_freq > 3:
+        max_freq = 3
+
+    # FILTER POS PPG W/ 2nd ORDER BUTTERWORTH FILTER
+    b, a = signal.butter(2, [(min_freq) / fs * 2, (max_freq) / fs * 2], btype='bandpass')
+    pos_bvp = signal.filtfilt(b, a, bvp.astype(np.double))
+
+    # APPLY HILBERT NORMALIZATION TO NORMALIZE PPG AMPLITUDE
+    analytic_signal = signal.hilbert(pos_bvp)
+    amplitude_envelope = np.abs(analytic_signal)
+    env_norm_bvp = pos_bvp/amplitude_envelope
+
+    # Add New Fields to Data Mat File
+    data_dict['pos_bvp'] = pos_bvp
+    data_dict['pos_env_norm_bvp'] = env_norm_bvp
+
+    return data_dict # return data dict w/ POS psuedo labels
+
+
+
+################################################################
+####### CONSTRUCTING DATA DICTIONARY FROM RAW DATA FILES #######
+################################################################
+
+
+def read_raw_vid_frames(data_dir_info)
+
+    data_path = data_dir_info['path']
+    subject = data_dir_info['subject']
+    trial = data_dir_info['trial']
+
+    # GRAB EACH FRAME FROM ZIP FILE
+    imgzip = open(os.path.join(data_path, '2D+3D', subject+'.zip'))
+    zipfile_path = os.path.join(data_path, '2D+3D', subject+'.zip')
+    print(zipfile_path)
+    print('Current time after upzipping the file: ', datetime.now())
+    cnt = 0
+    with zipfile.ZipFile(zipfile_path, "r") as zippedImgs:
+        for ele in zippedImgs.namelist():
+            ext = os.path.splitext(ele)[-1]
+            ele_task = str(ele).split('/')[1]
+            if ext == '.jpg' and ele_task == trial:
+                data = zippedImgs.read(ele)
+                vid_frame = cv2.imdecode(np.fromstring(data, np.uint8), cv2.IMREAD_COLOR)
+                vid_LxL = downsample_frame(vid_frame, dim)
+                # clip image values to range (1/255, 1)
+                vid_LxL[vid_LxL > 1] = 1
+                vid_LxL[vid_LxL < 1./255] = 1./255
+                vid_LxL = np.expand_dims(vid_LxL, axis=0)
+                if cnt == 0:
+                    Xsub = vid_LxL
+                else:
+                    Xsub = np.concatenate((Xsub, vid_LxL), axis=0)
+                cnt += 1
+    
+    if cnt == 0:
+        return
+
+
+def read_raw_phys_labels(data_dir_info, len_Xsub):
+
+    data_path = data_dir_info['path']
+    subject = data_dir_info['subject']
+    trial = data_dir_info['trial']
+    base_path = os.path.join(data_path, "Physiology", subject, trial)
+
+    # READ IN PHYSIOLOGICAL LABELS TXT FILE DATA
+    try:
+        bp_wave = pd.read_csv(os.path.join(base_path, "BP_mmHg.txt")).to_numpy().flatten()
+        HR_bpm = pd.read_csv(os.path.join(base_path, "Pulse Rate_BPM.txt")).to_numpy().flatten()
+        resp_wave = pd.read_csv(os.path.join(base_path, "Resp_Volts.txt")).to_numpy().flatten()
+        resp_bpm = pd.read_csv(os.path.join(base_path, "Respiration Rate_BPM.txt")).to_numpy().flatten()
+        mean_BP = pd.read_csv(os.path.join(base_path, "LA Mean BP_mmHg.txt")).to_numpy().flatten()
+        sys_BP = pd.read_csv(os.path.join(base_path, "LA Systolic BP_mmHg.txt")).to_numpy().flatten()
+        dia_BP = pd.read_csv(os.path.join(base_path, "BP Dia_mmHg.txt")).to_numpy().flatten()
+        eda = pd.read_csv(os.path.join(base_path, "EDA_microsiemens.txt")).to_numpy().flatten()
+    except FileNotFoundError:
+        print('Label File Not Found At Basepath', base_path)
+        return
+
+    # RESIZE SIGNALS TO LENGTH OF X (FRAMES) AND CONVERT TO NPY ARRAY
+    bp_wave = np.interp(np.linspace(0, len(bp_wave), len_Xsub), np.arange(0, len(bp_wave)), bp_wave)
+    HR_bpm = np.interp(np.linspace(0, len(HR_bpm), len_Xsub), np.arange(0, len(HR_bpm)), HR_bpm)
+    resp_wave = np.interp(np.linspace(0, len(resp_wave), len_Xsub), np.arange(0, len(resp_wave)), resp_wave)
+    resp_bpm = np.interp(np.linspace(0, len(resp_bpm), len_Xsub), np.arange(0, len(resp_bpm)), resp_bpm)
+    mean_BP = np.interp(np.linspace(0, len(mean_BP), len_Xsub), np.arange(0, len(mean_BP)), mean_BP)
+    sys_BP = np.interp(np.linspace(0, len(sys_BP), len_Xsub), np.arange(0, len(sys_BP)), sys_BP)
+    dia_BP = np.interp(np.linspace(0, len(dia_BP), len_Xsub), np.arange(0, len(dia_BP)), dia_BP)
+    eda = np.interp(np.linspace(0, len(eda), len_Xsub), np.arange(0, len(eda)), eda)
+
+    
+    return bp_wave, HR_bpm, resp_wave, resp_bpm, mean_BP, sys_BP, dia_BP, eda  
+
+
+def construct_data_dict(data_dir_info):
+
+    # BUILD DICTIONARY TO STORE FRAMES AND LABELS
+    data_dict = dict()
+
+    # READ IN RAW VIDEO FRAMES
+    X = read_raw_vid_frames(data_dir_info)
+    lenX = X.shape[0]
+
+    # READ IN RAW PHYSIOLOGICAL SIGNAL LABELS 
+    bp_wave, HR_bpm, resp_wave, resp_bpm, mean_BP, sys_BP, dia_BP, eda = read_raw_phys_labels(data_dir_info, lenX)
+
+    # READ IN ACTION UNIT (AU) LABELS
+    if trial in [1, 6, 7, 8]: # trials w/ AU labels
+     # TODO
+
+    # CROP FRAMES AND LABELS TO AU SUBSET (IF TRUE)
+    if config_preprocess.USE_AU_SUBSET:
+        au_subset_idx = # TODO - write function to get AU subset dataset
+
+
+    # SAVE LABELS AND DATA TO DICTIONARY
+    data_dict['X'] = X
+
+    data_dict['bp_wave'] = bp_wave
+    data_dict['HR_bpm'] = HR_bpm
+    data_dict['mean_bp'] = mean_BP
+    data_dict['systolic_bp'] = sys_BP
+    data_dict['diastolic_bp'] = dia_BP
+    data_dict['resp_wave'] = resp_wave
+    data_dict['resp_bpm'] = resp_bpm
+    data_dict['eda'] = eda
+
+
+
+# GET VIDEO FRAMES FROM DATA DICTIONARY
+def read_video(data_dict):
     """ Reads a video file, returns frames (N,H,W,3) """
-    f = mat73.loadmat(file_path)
-    frames = f['X']
+    frames = data_dict['X']
     return np.asarray(frames)
 
 
 
-# TODO SWITCH FOR OTHER DATASETS
-def read_labels(file_path):
+# GET VIDEO LABELS FROM DATA DICTIONARY AND FORMAT AS ARRAY
+def read_labels(data_dict):
     """Reads labels corresponding to video file."""
-    f = mat73.loadmat(file_path)
+    f = data_dict
     keys = list(f.keys())
-    data_len = f['X'].shape[0]
-    keys.remove('X')
+    data_len = f['X'].shape[0] # get the video data length
+    keys.remove('X') # remove X from the processed keys (not a label)
 
+    # Init labels array
     labels = np.ones((data_len, 49)) # 47 tasks from original dataset, and added psuedo labels: 'pos_bvp','pos_env_norm_bvp'
     labels = -1*labels # make all values -1 originally
 
-    # Labels BY INDEX IN OUTPUT NPY ARRAY
+    # LABELS BY INDEX IN OUTPUT LABELS NPY ARRAY
     # 0: bp_wave, 1: hr_bpm, 2: systolic_bp, 3: diastolic_bp, 4: mean_bp,
     # 5: resp_wave, 6: resp_bpm, 7: eda, [8,47]: AUs, 'pos_bvp', 'pos_env_norm_bvp'
     labels_order_list = ['bp_wave', 'HR_bpm', 'systolic_bp', 'diastolic_bp', 'mean_bp', 'resp_wave', 'resp_bpm', 'eda', 
@@ -40,20 +256,24 @@ def read_labels(file_path):
                             'AU27', 'AU28', 'AU29', 'AU30', 'AU31', 'AU32', 'AU33', 'AU34', 'AU35', 'AU36', 'AU37', 'AU38', 'AU39', 
                             'pos_bvp','pos_env_norm_bvp']
 
-    # Adding All Labels To Array Dataset
+    # ADDING LABELS TO DATA ARRAY
     # If Label DNE Then Array Is -1 Filled For That Label
+    # Note: BP4D does not have AU labels for all trials: These fields are thus COMPLETELY -1 filled for these trials
     for i in range(len(labels_order_list)):
         if labels_order_list[i] in keys:
             labels[:, i] = f[labels_order_list[i]]
 
-    return np.asarray(labels) # Return labels as 
+    return np.asarray(labels) # Return labels as np array
 
 
+
+###############################################
+####### PREPROCESS VIDEO AND LABEL DATA #######
+###############################################
 
 def resize(frames, dynamic_det, det_length,
             w, h, larger_box, crop_face, larger_box_size):
     """
-
     :param dynamic_det: If False, it will use the only first frame to do facial detection and
                         the detected result will be used for all frames to do cropping and resizing.
                         If True, it will implement facial detection every "det_length" frames,
@@ -96,31 +316,15 @@ def resize(frames, dynamic_det, det_length,
     return resize_frames
 
 
-# TODO: This function DOES NOT support a number of edge cases but is okay for now...
+
 def chunk(big_frames, small_frames, labels, config_preprocess):
     """Chunks the data into clips."""
 
-    # get the max length of the time window
-    big_chunklen = config_preprocess['BIG_CHUNKLEN']
-    small_chunklen = config_preprocess['SMALL_CHUNKLEN']
     chunk_len = max(big_chunklen, small_chunklen)
-    stride = config_preprocess['CHUNK_STRIDE'] 
-
-    # If Sliding Window
-    if config_preprocess['USE_CHUNK_SLIDING_WINDOW']:
-        clip_num = (labels.shape[0] - chunk_len) // stride + 1
-        big_clips = [big_frames[i*stride : i*stride + 1] for i in range(clip_num)] # TODO Hardcoded Chunklen of 1
-        small_clips = [small_frames[i*stride : i*stride + chunk_len] for i in range(clip_num)]
-        labels_clips = [labels[i*stride : i*stride + chunk_len] for i in range(clip_num)]
-
-    # If Straight Chunk (No Sliding Window)
-    else: 
-        clip_num = labels.shape[0] // chunk_len
-        big_clips = [big_frames[i * chunk_len:(i + 1) * chunk_len] for i in range(clip_num)]
-        small_clips = [small_frames[i * chunk_len:(i + 1) * chunk_len] for i in range(clip_num)]
-        labels_clips = [labels[i * chunk_len:(i + 1) * chunk_len] for i in range(clip_num)]
-
-    # TODO - Add Downsampleing If Need Be: Replace chunk lens with downsample and other chunklens
+    clip_num = labels.shape[0] // chunk_len
+    big_clips = [big_frames[i * chunk_len:(i + 1) * chunk_len] for i in range(clip_num)]
+    small_clips = [small_frames[i * chunk_len:(i + 1) * chunk_len] for i in range(clip_num)]
+    labels_clips = [labels[i * chunk_len:(i + 1) * chunk_len] for i in range(clip_num)]
 
     return np.array(big_clips), np.array(small_clips), np.array(labels_clips)
 
@@ -128,37 +332,37 @@ def chunk(big_frames, small_frames, labels, config_preprocess):
 
 def preprocess(frames, labels, config_preprocess):
     
-    ######################################
-    ########## PROCESSED FRAMES ##########
-    ######################################
+    #######################################
+    ########## PROCESSING FRAMES ##########
+    #######################################
 
-    # Resize Frames To The Size Of Big
+    # RESIZE FRAMES TO BIG SIZE  (144x144 DEFAULT)
     frames = resize(
             frames,
-            config_preprocess['DYNAMIC_DETECTION'],
-            config_preprocess['DYNAMIC_DETECTION_FREQUENCY'],
-            config_preprocess['BIG_W'],
-            config_preprocess['BIG_H'],
-            config_preprocess['LARGE_FACE_BOX'],
-            config_preprocess['CROP_FACE'],
-            config_preprocess['LARGE_BOX_COEF']) 
+            config_preprocess['DYNAMIC_DETECTION'], # dynamic face detection
+            config_preprocess['DYNAMIC_DETECTION_FREQUENCY'], # how often to use face detection
+            config_preprocess['BIG_W'], # Big width
+            config_preprocess['BIG_H'], # Big height
+            config_preprocess['LARGE_FACE_BOX'], # larger-than-face bounding box coefficient
+            config_preprocess['CROP_FACE'], # use face cropping
+            config_preprocess['LARGE_BOX_COEF']) # use larger-than-face bounding box
 
-    # Big Data Frames
-    bigsmall_data = dict()
+
+    # PROCESS BIG FRAMES
     big_data = list()
     for data_type in config_preprocess['BIG_DATA_TYPE']:
         f_c = frames.copy()
         if data_type == "Raw": # Raw Frames
-            bigsmall_data[0] = f_c[:-1, :, :, :]
+            big_data.append(f_c[:-1, :, :, :])
         elif data_type == "Normalized": # Normalized Difference Frames
-            data.append(BaseLoader.diff_normalize_data(f_c))
+            big_data.append(BaseLoader.diff_normalize_data(f_c))
         elif data_type == "Standardized": # Raw Standardized Frames
-            data.append(BaseLoader.standardized_data(f_c)[:-1, :, :, :])
+            big_data.append(BaseLoader.standardized_data(f_c)[:-1, :, :, :])
         else:
             raise ValueError("Unsupported data type!")
-    data = np.concatenate(data, axis=3)
+    big_data = np.concatenate(big_data, axis=3)
 
-    # Small Data Frames
+    # PROCESS SMALL FRAMES
     small_data = list()
     for data_type in config_preprocess['SMALL_DATA_TYPE']:
         f_c = frames.copy()
@@ -172,7 +376,7 @@ def preprocess(frames, labels, config_preprocess):
             raise ValueError("Unsupported data type!")
     small_data = np.concatenate(small_data, axis=3)
 
-    # Resize Small
+    # RESIZE SMALL FRAMES TO LOWER RESOLUTION (9x9 DEFAULT)
     small_data = resize(
             small_data,
             False,
@@ -187,7 +391,7 @@ def preprocess(frames, labels, config_preprocess):
     ########## PROCESSED LABELS ##########
     ######################################
 
-    # Pull signals from .mat array
+    # EXTRACT LABELS FROM ARRAY
     bp_wave = labels[:, 0]
     hr = labels[:, 1]
     bp_sys = labels[:, 2]
@@ -200,20 +404,19 @@ def preprocess(frames, labels, config_preprocess):
     pos_bvp = labels[:, 47]
     pos_env_norm_bvp = labels[:, 48]
 
-    # Remove BP Outliers
+    # REMOVE BP OUTLIERS
     bp_sys[bp_sys < 5] = 5
     bp_sys[bp_sys > 250] = 250
     bp_dia[bp_dia < 5] = 5
     bp_dia[bp_dia > 200] = 200
 
-    # Remove EDA Outliers
+    # REMOVE EDA OUTLIERS
     eda[eda < 1] = 1
     eda[eda > 40] = 40
 
-    # If there are au labels for this data file
-    # TODO: Find a more elegant way to do this...
+    # REMOVE AU -1 LABELS IN AU SUBSET
     if np.average(au) != -1:
-        au[np.where(au != 0) and np.where(au != 1)] = 0 # remove unknown values (-1) from au: can do this better later: TODO GIRISH
+        au[np.where(au != 0) and np.where(au != 1)] = 0
         labels[:, 8:47] = au
 
     if config_preprocess['LABEL_TYPE'] == "Raw":
@@ -303,36 +506,46 @@ def save_multi_process(big_clips, small_clips, label_clips, filename, config_pre
 
 def preprocess_dataset_subprocess(data_dirs, config_preprocess, i, file_list_dict):
     """ invoked by preprocess_dataset for multi_process """
-    filename = data_dirs[i]['path'] # get data file name
-    saved_filename = data_dirs[i]['index'] # get file name w/out .mat extension
-    
-    frames = read_video(filename) # read in the video frames
-    labels = read_labels(os.path.join(filename))
 
-    if frames.shape[0] != labels.shape[0]:  # CHECK IF ALL DATA THE SAME LENGTH
+    data_dir_info = data_dirs[i]['path'] # get data raw data file path 
+    saved_filename = data_dirs[i]['index'] # get file name w/out .mat extension # TODO CHANGE THIS COMMENT
+
+    # TODO (IF TRUE) AND NOT AN AU TRIAL: SKIP
+    if config_preprocess.USE_AU_SUBSET:
+        au_subset_idx = # TODO - write function to get AU subset dataset
+
+    # CONSTRUCT DATA DICTIONARY FOR VIDEO TRIAL
+    data_dict = construct_data_dict(data_dir_info) # TODO construct a dictionary of ALL labels and video frames (of equal length)
+    data_dict = generate_psuedo_labels(data_dict) # adds POS psuedo BVP labels to dataset
+    
+    # SEPERATE DATA INTO VIDEO FRAMES AND LABELS ARRAY
+    frames = read_video(data_dict) # read in the video frames
+    labels = read_labels(data_dict) # read in video labels 
+    if frames.shape[0] != labels.shape[0]: # check if data and labels are the same length
         raise ValueError(' Preprocessing dataset subprocess: frame and label time axis not the same')
 
-    # Preprocess the read in data files and labels
+    # PREPROCESS VIDEO FRAMES AND LABELS (eg. DIFF-NORM, RAW_STD)
     big_clips, small_clips, labels_clips = preprocess(frames, labels, config_preprocess)
 
-    # Save the preprocessed file chunks 
+    # SAVE PREPROCESSED FILE CHUNKS
     count, input_name_list, label_name_list = save_multi_process(big_clips, small_clips, labels_clips, saved_filename, config_preprocess)
     file_list_dict[i] = input_name_list
 
 
 
 def multi_process_manager(data_dirs, config_preprocess):
+    
     file_num = len(data_dirs) # number of files in the dataset
-    choose_range = choose_range = range(0, file_num)
+    choose_range = range(0, file_num)
     pbar = tqdm(list(choose_range))
 
     MAX_THREADS = 8 # max number of threads allowed for dataset multithread preprocessing
 
-    # shared data resource
-    manager = Manager()
-    file_list_dict = manager.dict()
-    p_list = []
-    running_num = 0
+    # SHARED DATA RESOURCES FOR CROSS-PROCESS DATA SHARING
+    manager = Manager() # multiprocess manager 
+    file_list_dict = manager.dict() # dictionary to store file list of each processed file (thread safe)
+    p_list = [] # list of active threads
+    running_num = 0 # number of active threads
 
     for i in choose_range:
         process_flag = True
@@ -340,7 +553,7 @@ def multi_process_manager(data_dirs, config_preprocess):
 
             if running_num < MAX_THREADS:  # in case of too many processes
 
-                # preprocess ith file from data_dirs
+                # PREPROCESS i-TH FILE FROM data_dirs
                 p = Process(target=preprocess_dataset_subprocess, \
                             args=(data_dirs, config_preprocess, i, file_list_dict))
                 p.start()
@@ -371,25 +584,57 @@ def multi_process_manager(data_dirs, config_preprocess):
 def get_data(data_path):
     """Returns data directories under the path(For PURE dataset)."""
 
-    # all file lists are of example naming format: F001T01.mat
-    data_dirs = glob.glob(data_path + os.sep + "*.mat") # read in data mat files 
+    # all subject trials # F008T8.mat
 
-    if not data_dirs:
+    # GET ALL SUBJECT TRIALS IN DATASET
+    subj_trials = glob.glob(os.path.join(data_path, "Physiology", "F*", "T*"))
+
+    # SPLIT PATH UP INTO INFORMATION (SUBJECT, TRIAL, ETC.)
+    data_dirs = list()
+    for trial_path in subj_trials:
+        trial_data = trial_path.split(os.sep)
+        index = trial_data[-1] + trial_data[-2] # should be of format: F008T8 (TODO verify this)
+        trial = trial_data[-1]
+        subj_sex = index[0] # subject biological sex
+        subject = int(index[1:4]) # subject number (by sex)
+        data_dirs.append({"index": index, "path": data_path, "subject": subject, "trial": trial, ,"sex": subj_sex})
+
+    # RETURN DATA DIRS 
+    return data_dirs
+
+
+
+        
+        
+
+    # TODO FILTER OUT TRIALS W/OUT AU LABELS  
+    if config_preprocess.USE_AU_SUBSET:
+        au_subset_idx = # TODO - write function to get AU subset dataset
+
+    if not subj_trials:
         raise ValueError(" dataset get data error!")
-    dirs = list()
-    for data_dir in data_dirs: # build a dict list of input files
+
+    data_dirs = list()
+    for data_dir in subj_trials: # build a dict list of input files
         subject_data = os.path.split(data_dir)[-1].replace('.mat', '')
         subj_sex = subject_data[0] # subject biological sex
         subject = int(subject_data[1:4]) # subject number (by sex)
         index = subject_data # data name w/out extension
-        dirs.append({"index": subject_data, "path": data_dir, "subject": subject, "sex": subj_sex})
-    return dirs
+        data_dirs.append({"index": subject_data, "path": data_dir, "subject": subject, "sex": subj_sex})
+    return data_dirs
 
 
 
 def bigsmall_preprocessing(raw_data_path, config_preprocess):
-    data_dirs = get_data(raw_data_path) 
+
+    # GET DATASET INFORMATION (PATHS AND OTHER META DATA REGARDING ALL VIDEO TRIALS)
+    data_dirs = get_data(raw_data_path) # TODO read in raw data and generate data dictionary
+
+    # READ RAW DATA, PREPROCESS, AND SAVE PROCESSED DATA FILES
     file_list_dict = multi_process_manager(data_dirs, config_preprocess)
+
+
+    
 
 
 
