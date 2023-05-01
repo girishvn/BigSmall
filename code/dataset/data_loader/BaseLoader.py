@@ -387,7 +387,6 @@ class BaseLoader(Dataset):
     def diff_normalize_label(label):
         """Difference frames and normalization labels"""
         diff_label = np.diff(label, axis=0)
-        #return diff_label
         normalized_label = diff_label / np.std(diff_label) # TODO - some times results in NAN outputs
         normalized_label[np.isnan(normalized_label)] = 0
         return normalized_label

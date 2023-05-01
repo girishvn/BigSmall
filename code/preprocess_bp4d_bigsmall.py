@@ -15,9 +15,9 @@ from scipy import sparse
 
 import cv2
 from skimage.transform import resize
+from skimage.util import img_as_float
 
 from dataset.data_loader.BaseLoader import BaseLoader
-
 
 
 
@@ -76,8 +76,7 @@ def POS_WANG(frames, fs):
     BVP = H
     BVP = detrend(np.mat(BVP).H, 100)
     BVP = np.asarray(np.transpose(BVP))[0]
-    # b, a = signal.butter(1, [0.75 / fs * 2, 3 / fs * 2], btype='bandpass')
-    # BVP = signal.filtfilt(b, a, BVP.astype(np.double))
+
     return BVP
 
 
@@ -85,7 +84,7 @@ def POS_WANG(frames, fs):
 # ITERATE THROUGH DATASET AND GENERATE BVP PSUEDO LABELS
 def generate_psuedo_labels(data_dict):
 
-    print('Generating POS Psuedo BVP Labels...')
+    # print('Generating POS Psuedo BVP Labels...')
 
     # READ VIDEO FRAMES
     x = data_dict['X'] # read in video frames
@@ -130,19 +129,32 @@ def generate_psuedo_labels(data_dict):
 ####### CONSTRUCTING DATA DICTIONARY FROM RAW DATA FILES #######
 ################################################################
 
+def downsample_frame(frame, dim_h=144, dim_w=144):
 
-def read_raw_vid_frames(data_dir_info):
+    if dim_h == dim_w: # square crop
+        vidLxL = cv2.resize(img_as_float(frame[int((frame.shape[0]-frame.shape[1])):,:,:]), (dim_h,dim_w), interpolation=cv2.INTER_AREA)
+    else:
+        vidLxL = cv2.resize(img_as_float(frame), (dim_h,dim_w), interpolation=cv2.INTER_AREA)
+
+    return cv2.cvtColor(vidLxL.astype('float32'), cv2.COLOR_BGR2RGB)
+
+
+
+def read_raw_vid_frames(data_dir_info, config_preprocess, data_dict):
 
     data_path = data_dir_info['path']
-    subject = data_dir_info['subject']
+    subject_trial = data_dir_info['index'][0:4]
     trial = data_dir_info['trial']
 
     # GRAB EACH FRAME FROM ZIP FILE
-    imgzip = open(os.path.join(data_path, '2D+3D', subject+'.zip'))
-    zipfile_path = os.path.join(data_path, '2D+3D', subject+'.zip')
-    print(zipfile_path)
-    print('Current time after upzipping the file: ', datetime.now())
+    imgzip = open(os.path.join(data_path, '2D+3D', subject_trial+'.zip'))
+    zipfile_path = os.path.join(data_path, '2D+3D', subject_trial+'.zip')
+
+    # print(zipfile_path)
+    # print('Current time after upzipping the file: ', datetime.now())
+
     cnt = 0
+
     with zipfile.ZipFile(zipfile_path, "r") as zippedImgs:
         for ele in zippedImgs.namelist():
             ext = os.path.splitext(ele)[-1]
@@ -150,7 +162,11 @@ def read_raw_vid_frames(data_dir_info):
             if ext == '.jpg' and ele_task == trial:
                 data = zippedImgs.read(ele)
                 vid_frame = cv2.imdecode(np.fromstring(data, np.uint8), cv2.IMREAD_COLOR)
-                vid_LxL = downsample_frame(vid_frame, dim)
+
+                dim_h = config_preprocess['BIG_H']
+                dim_w = config_preprocess['BIG_W']
+                vid_LxL = downsample_frame(vid_frame, dim_h=dim_h, dim_w=dim_w) # downsample frames (otherwise processing time becomes WAY TOO LONG)
+
                 # clip image values to range (1/255, 1)
                 vid_LxL[vid_LxL > 1] = 1
                 vid_LxL[vid_LxL < 1./255] = 1./255
@@ -163,14 +179,19 @@ def read_raw_vid_frames(data_dir_info):
     
     if cnt == 0:
         return
+    
+    data_dict['X'] = Xsub
+    return data_dict
 
 
-def read_raw_phys_labels(data_dir_info, len_Xsub):
+def read_raw_phys_labels(data_dir_info, data_dict):
 
     data_path = data_dir_info['path']
-    subject = data_dir_info['subject']
-    trial = data_dir_info['trial']
+    subject = data_dir_info['index'][0:4] # of format F008
+    trial = data_dir_info['trial'] # of format T05
     base_path = os.path.join(data_path, "Physiology", subject, trial)
+
+    len_Xsub = data_dict['X'].shape[0] # TODO WHAT IS THE CORRECT FRAME INDEX?????????
 
     # READ IN PHYSIOLOGICAL LABELS TXT FILE DATA
     try:
@@ -196,37 +217,6 @@ def read_raw_phys_labels(data_dir_info, len_Xsub):
     dia_BP = np.interp(np.linspace(0, len(dia_BP), len_Xsub), np.arange(0, len(dia_BP)), dia_BP)
     eda = np.interp(np.linspace(0, len(eda), len_Xsub), np.arange(0, len(eda)), eda)
 
-    
-    return bp_wave, HR_bpm, resp_wave, resp_bpm, mean_BP, sys_BP, dia_BP, eda  
-
-
-def construct_data_dict(data_dir_info):
-
-    # BUILD DICTIONARY TO STORE FRAMES AND LABELS
-    data_dict = dict()
-
-    # READ IN RAW VIDEO FRAMES
-    X = read_raw_vid_frames(data_dir_info)
-    lenX = X.shape[0]
-
-    # READ IN RAW PHYSIOLOGICAL SIGNAL LABELS 
-    bp_wave, HR_bpm, resp_wave, resp_bpm, mean_BP, sys_BP, dia_BP, eda = read_raw_phys_labels(data_dir_info, lenX)
-
-    # READ IN ACTION UNIT (AU) LABELS
-    # if trial in [1, 6, 7, 8]: # trials w/ AU labels
-    #  # TODO
-    #  pass
-
-    # # CROP FRAMES AND LABELS TO AU SUBSET (IF TRUE)
-    # if config_preprocess.USE_AU_SUBSET:
-    #     pass
-    #     au_subset_idx = False # TODO - write function to get AU subset dataset
-        
-
-
-    # SAVE LABELS AND DATA TO DICTIONARY
-    data_dict['X'] = X
-
     data_dict['bp_wave'] = bp_wave
     data_dict['HR_bpm'] = HR_bpm
     data_dict['mean_bp'] = mean_BP
@@ -235,6 +225,119 @@ def construct_data_dict(data_dir_info):
     data_dict['resp_wave'] = resp_wave
     data_dict['resp_bpm'] = resp_bpm
     data_dict['eda'] = eda
+    return data_dict  
+
+
+
+def read_au_labels(data_dir_info, config_preprocess, data_dict):
+
+    # DATA PATH INFO    
+    subj_idx = data_dir_info['index']
+    base_path = config_preprocess['RAW_DATA_PATH']
+    AU_OCC_url = os.path.join(base_path, 'AUCoding', "AU_OCC", subj_idx[0:4] + '_' + subj_idx[4:] + '.csv')
+
+    # DATA CHUNK LENGTH
+    frame_shape = data_dict['X'].shape[0]
+
+    # READ IN AU CSV FILE
+    AUs = pd.read_csv(AU_OCC_url, header = 0).to_numpy()
+
+    # NOTE: START AND END FRAMES ARE 1-INDEXED
+    start_frame = AUs[0,0] # first frame w/ AU encoding
+    end_frame = AUs[AUs.shape[0] - 1, 0] # last frame w/ AU encoding
+
+    # ENCODED AUs
+    AU_num = [1, 2, 4, 5, 6, 7, 9, 10, 11, 
+              12, 13, 14, 15, 16, 17, 18, 19, 20,
+              22, 23, 24, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39]
+    AU_int_num = [6, 10, 12, 14, 17] # AU w/ intensity encoding (0-5)
+ 
+    # ITERATE THROUGH ENCODED AUs
+    for au_idx, au in enumerate(AU_num): # Iterate through list of AUs
+
+        # Define AU str name
+        if au < 10:
+            AU_key = 'AU' + '0' + str(au)
+        else:
+            AU_key = 'AU' + str(au)
+
+        # GET SPECIFIC ACTION UNIT DATA
+        aucoding = AUs[:, au_idx + 1] # indx + 1 as first row/column is index
+
+        if start_frame > 1: # indx + 1 as first row/column is 1-indexed
+            # pad the previous frame with -1
+            aucoding = np.pad(aucoding, (start_frame - 1, 0), 'constant', constant_values = (-1, -1))
+        if end_frame < frame_shape:
+            # pad the following frame with -1 as well
+            aucoding = np.pad(aucoding, (0, frame_shape - end_frame), 'constant', constant_values = (-1, -1))
+
+        # Save out info to dict
+        data_dict[AU_key] = aucoding
+
+        # READ IN INTENSITY (INT) ENCODED AUs
+        if au in AU_int_num:
+            AU_INT_url = os.path.join(base_path, 'AUCoding', 'AU_INT', AU_key, subj_idx[0:4] + '_' + subj_idx[4:] + '_' + AU_key + '.csv')
+            AUs_int = pd.read_csv(AU_INT_url, header = None).to_numpy() # read in each csv file
+            assert (AUs_int.shape[0] == AUs.shape[0]) # ensure int encoding same length as binary encoding
+            aucoding_int = AUs_int[:, 1]
+            if start_frame > 1:
+                # pad the previous frame with -1
+                aucoding_int = np.pad(aucoding_int, (start_frame - 1, 0), 'constant', constant_values = (-1, -1))
+            if end_frame < frame_shape:
+                # pad the following frame with -1
+                aucoding_int = np.pad(aucoding_int, (0, frame_shape - end_frame), 'constant', constant_values = (-1, -1))
+
+            # Save out info to dict
+            AU_int_key = AU_key + 'int'
+            data_dict[AU_int_key] = aucoding_int
+
+    # return start crop index if using AU subset data
+    start_np_idx = start_frame - 1 
+    end_np_idx = end_frame - 1
+    return data_dict, start_np_idx, end_np_idx
+    
+
+
+def crop_au_subset_data(data_dict, start, end):
+
+    keys = data_dict.keys()
+
+    # Iterate through video frames ad labels and crop based off start and end frame
+    for k in keys:
+        data_dict[k] = data_dict[k][start:end+1] # start and end frames are inclusive 
+
+    return data_dict
+
+        
+def construct_data_dict(data_dir_info, config_preprocess):
+
+    # GET TRIAL NUMBER 
+    trial = data_dir_info['trial']
+
+    # BUILD DICTIONARY TO STORE FRAMES AND LABELS
+    data_dict = dict()
+
+    # READ IN RAW VIDEO FRAMES
+    data_dict = read_raw_vid_frames(data_dir_info, config_preprocess, data_dict)
+
+    # READ IN RAW PHYSIOLOGICAL SIGNAL LABELS 
+    data_dict = read_raw_phys_labels(data_dir_info, data_dict)
+
+    # READ IN ACTION UNIT (AU) LABELS (if trial in [1, 6, 7, 8]: trials w/ AU labels)
+    if trial in ['T1', 'T6', 'T7', 'T8']:
+        data_dict, start_np_idx, end_np_idx = read_au_labels(data_dir_info, config_preprocess, data_dict)
+
+        # CROP DATAFRAME W/ AU START END
+        if config_preprocess['AU_SUBSET']: # if using only the AU dataset subset
+            data_dict = crop_au_subset_data(data_dict, start_np_idx, end_np_idx)
+
+    # FRAMES AND LABELS SHOULD BE OF THE SAME LENGTH
+    for k in data_dict.keys():
+        if not data_dict[k].shape[0] == data_dict['X'].shape[0]:
+            print('Shape Mismatch', k, data_dict[k].shape[0])
+            raise ValueError('Shape Mismatch')
+
+    return data_dict
 
 
 
@@ -420,10 +523,13 @@ def preprocess(frames, labels, config_preprocess):
     bp_sys[bp_sys > 250] = 250
     bp_dia[bp_dia < 5] = 5
     bp_dia[bp_dia > 200] = 200
+    labels[:, 2] = bp_sys
+    labels [:, 3] = bp_dia
 
     # REMOVE EDA OUTLIERS
     eda[eda < 1] = 1
     eda[eda > 40] = 40
+    labels[:, 7] = eda
 
     # REMOVE AU -1 LABELS IN AU SUBSET
     if np.average(au) != -1:
@@ -485,8 +591,8 @@ def preprocess(frames, labels, config_preprocess):
 def save_multi_process(big_clips, small_clips, label_clips, filename, config_preprocess):
     """Saves the preprocessing data."""
     cached_path = config_preprocess['CACHED_PATH']
-    if not os.path.exists(cached_path):
-        os.makedirs(cached_path, exist_ok=True)
+    # if not os.path.exists(cached_path):
+    #     os.makedirs(cached_path, exist_ok=True)
     count = 0
     input_path_name_list = []
     label_path_name_list = []
@@ -518,15 +624,13 @@ def save_multi_process(big_clips, small_clips, label_clips, filename, config_pre
 def preprocess_dataset_subprocess(data_dirs, config_preprocess, i, file_list_dict):
     """ invoked by preprocess_dataset for multi_process """
 
-    data_dir_info = data_dirs[i]['path'] # get data raw data file path 
-    saved_filename = data_dirs[i]['index'] # get file name w/out .mat extension # TODO CHANGE THIS COMMENT
+    print('Starting SubProcesses: ', datetime.now())
 
-    # TODO (IF TRUE) AND NOT AN AU TRIAL: SKIP
-    # if config_preprocess.USE_AU_SUBSET:
-    #     au_subset_idx = # TODO - write function to get AU subset dataset
+    data_dir_info = data_dirs[i] # get data raw data file path 
+    saved_filename = data_dirs[i]['index'] # get subject and trial in format of  FXXXTXX
 
     # CONSTRUCT DATA DICTIONARY FOR VIDEO TRIAL
-    data_dict = construct_data_dict(data_dir_info) # TODO construct a dictionary of ALL labels and video frames (of equal length)
+    data_dict = construct_data_dict(data_dir_info, config_preprocess) # construct a dictionary of ALL labels and video frames (of equal length)
     data_dict = generate_psuedo_labels(data_dict) # adds POS psuedo BVP labels to dataset
     
     # SEPERATE DATA INTO VIDEO FRAMES AND LABELS ARRAY
@@ -534,23 +638,29 @@ def preprocess_dataset_subprocess(data_dirs, config_preprocess, i, file_list_dic
     labels = read_labels(data_dict) # read in video labels 
     if frames.shape[0] != labels.shape[0]: # check if data and labels are the same length
         raise ValueError(' Preprocessing dataset subprocess: frame and label time axis not the same')
-
+    
     # PREPROCESS VIDEO FRAMES AND LABELS (eg. DIFF-NORM, RAW_STD)
     big_clips, small_clips, labels_clips = preprocess(frames, labels, config_preprocess)
 
+    print('Right Before Saving... SubProcesses: ', datetime.now())
+
     # SAVE PREPROCESSED FILE CHUNKS
     count, input_name_list, label_name_list = save_multi_process(big_clips, small_clips, labels_clips, saved_filename, config_preprocess)
-    file_list_dict[i] = input_name_list
+    
+    print('Finished Saving... SubProcesses: ', datetime.now())
 
+    file_list_dict[i] = input_name_list
+    
 
 
 def multi_process_manager(data_dirs, config_preprocess):
     
     file_num = len(data_dirs) # number of files in the dataset
     choose_range = range(0, file_num)
+    # choose_range = range(0, 1) # TODO REMOVE THIS - JUST FOR TEST
     pbar = tqdm(list(choose_range))
 
-    MAX_THREADS = 8 # max number of threads allowed for dataset multithread preprocessing
+    MAX_THREADS = 8 # max number of threads allowed for dataset multithread preprocessing # TODO change this back to 8
 
     # SHARED DATA RESOURCES FOR CROSS-PROCESS DATA SHARING
     manager = Manager() # multiprocess manager 
@@ -565,14 +675,13 @@ def multi_process_manager(data_dirs, config_preprocess):
             if running_num < MAX_THREADS:  # in case of too many processes
 
                 # PREPROCESS i-TH FILE FROM data_dirs
-                p = Process(target=preprocess_dataset_subprocess, \
-                            args=(data_dirs, config_preprocess, i, file_list_dict))
+                p = Process(target=preprocess_dataset_subprocess, args=(data_dirs, config_preprocess, i, file_list_dict))
                 p.start()
                 p_list.append(p)
                 running_num += 1
                 process_flag = False
 
-            # remove killed threads
+            # REMOVE DEAD / FINISHED PROCESSES
             for p_ in p_list:
                 if not p_.is_alive():
                     p_list.remove(p_)
@@ -580,7 +689,7 @@ def multi_process_manager(data_dirs, config_preprocess):
                     running_num -= 1
                     pbar.update(1)
 
-    # join all processes
+    # JOIN PROCESSES
     for p_ in p_list:
         p_.join()
         pbar.update(1)
@@ -589,75 +698,76 @@ def multi_process_manager(data_dirs, config_preprocess):
     return file_list_dict
 
 
-
+# NOTE: Subjet F082 is missing trial 1
+# NOTE: Subject F042 has an additional trial, trial 11 (weird!)
 # Get all data files and some meta data
 def get_data(data_path):
     """Returns data directories under the path(For PURE dataset)."""
 
-    print('getting data')
-
-    # all subject trials formatted like follows: F008T8.mat
+    data_path = config_preprocess['RAW_DATA_PATH'] # get raw data path
 
     # GET ALL SUBJECT TRIALS IN DATASET
-    subj_trials = glob.glob(os.path.join(data_path, "Physiology", "F*", "T*"))
+    f_subj_trials = glob.glob(os.path.join(data_path, "Physiology", "F*", "T*"))
+    m_subj_trials = glob.glob(os.path.join(data_path, "Physiology", "M*", "T*"))
+    subj_trials = f_subj_trials + m_subj_trials
 
     # SPLIT PATH UP INTO INFORMATION (SUBJECT, TRIAL, ETC.)
     data_dirs = list()
     for trial_path in subj_trials:
         trial_data = trial_path.split(os.sep)
-        index = trial_data[-1] + trial_data[-2] # should be of format: F008T8 (TODO verify this)
-        trial = trial_data[-1]
+        index = trial_data[-2] + trial_data[-1] # should be of format: F008T8
+        trial = trial_data[-1] # trial number 
         subj_sex = index[0] # subject biological sex
         subject = int(index[1:4]) # subject number (by sex)
-        data_dirs.append({"index": index, "path": data_path, "subject": subject, "trial": trial, "sex": subj_sex})
 
-        print('')
-        raise ValueError('GIRISH FORCE KILL')
-        print('')
+        # If processesing AU Subset only process trials T1, T6, T7, T8 (only ones that have AU labels)
+        if config_preprocess['AU_SUBSET'] and not trial in ['T1', 'T6', 'T7', 'T8']:
+            continue
+        
+        # append information to data dirs list
+        data_dirs.append({"index": index, "path": data_path, "subject": subject, "trial": trial, "sex": subj_sex})
 
     # RETURN DATA DIRS 
     return data_dirs
 
 
 
-        
-        
+# REMOVE ALREADY PREPROCESSED FILES FROM DATA DIRS LIST
+def adjust_data_dirs(data_dirs, config_preprocess):
+    file_list = glob.glob(os.path.join(config_preprocess['CACHED_PATH'], '*label*.npy'))
+    trial_list = [f.replace(config_preprocess['CACHED_PATH'], '').split('_')[0].replace(os.sep, '') for f in file_list]
+    trial_list = list(set(trial_list)) # get a list of completed video trials
 
-    # TODO FILTER OUT TRIALS W/OUT AU LABELS  
-    # if config_preprocess.USE_AU_SUBSET:
-    #     au_subset_idx = # TODO - write function to get AU subset dataset
+    for d in data_dirs:
+        idx = d['index']
 
-    # if not subj_trials:
-    #     raise ValueError(" dataset get data error!")
+        if idx in trial_list: # if trial has already been processed
+            data_dirs.remove(d)
 
-    # data_dirs = list()
-    # for data_dir in subj_trials: # build a dict list of input files
-    #     subject_data = os.path.split(data_dir)[-1].replace('.mat', '')
-    #     subj_sex = subject_data[0] # subject biological sex
-    #     subject = int(subject_data[1:4]) # subject number (by sex)
-    #     index = subject_data # data name w/out extension
-    #     data_dirs.append({"index": subject_data, "path": data_dir, "subject": subject, "sex": subj_sex})
-    # return data_dirs
+    return data_dirs
 
 
 
-def bigsmall_preprocessing(raw_data_path, config_preprocess):
+def bigsmall_preprocessing(config_preprocess):
 
-    print('start processing')
+    print('Starting Preprocessing...')
 
     # GET DATASET INFORMATION (PATHS AND OTHER META DATA REGARDING ALL VIDEO TRIALS)
-    data_dirs = get_data(raw_data_path) # TODO read in raw data and generate data dictionary
+    data_dirs = get_data(config_preprocess)
 
-    raise ValueError('GIRISH FORCE KILL')
+    # REMOVE ALREADY PREPROCESSED SUBJECTS
+    data_dirs = adjust_data_dirs(data_dirs, config_preprocess)
+
+    # CREATE CACHED DATA PATH
+    cached_path = config_preprocess['CACHED_PATH']
+    if not os.path.exists(cached_path):
+        os.makedirs(cached_path, exist_ok=True)
 
     # READ RAW DATA, PREPROCESS, AND SAVE PROCESSED DATA FILES
     file_list_dict = multi_process_manager(data_dirs, config_preprocess)
 
     #TODO build file lists
     print("DONE!")
-
-
-    
 
 
 
@@ -694,15 +804,17 @@ config_preprocess['LARGE_BOX_COEF'] = False # Default: False
 ########################## MAIN ##########################
 ##########################################################
 
-# RAW DATA PATHS: TODO SET THIS
+# RAW DATA PATHS: NOTE SET THIS
 # RAW_DATA_PATH = '/gscratch/ubicomp/girishvn/datasets/BP4D_plus/BP4DPlus_AUSubset'
 config_preprocess['RAW_DATA_PATH'] = 'F:\BP4D+_v0.2'
 
-# WHERE TO STORE THE PREPROCESSED DATA # TODO SET THESE
+# WHERE TO STORE THE PREPROCESSED DATA # NOTE SET THESE
 # EXP_NAME = 'BP4DPlus_Big144RawStd_Small9DiffNorm_ClipLen3_AUSubset'
 # config_preprocess['CACHED_PATH'] = os.path.join('/gscratch/ubicomp/girishvn/rppg/rppg_datasets/PreprocessedData/', EXP_NAME)
-config_preprocess['CACHED_PATH'] = 'F:\BP4DPlus_Big144_Small9_AUSubset'
+config_preprocess['CACHED_PATH'] = 'F:\BP4DPlus_Big144_Small9_AUSubset' #TODO clean this up
 
 config_preprocess['AU_SUBSET'] = True
 
-bigsmall_preprocessing(config_preprocess)
+
+if __name__ == '__main__':
+    bigsmall_preprocessing(config_preprocess)
