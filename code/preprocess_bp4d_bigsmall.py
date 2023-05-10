@@ -54,7 +54,7 @@ def detrend(input_signal, lambda_value):
 
 
 # PLANE ORTHOGONAL TO SKIN RPPG METHOD
-def POS_WANG(frames, fs):
+def POS_WANG_No_Filter(frames, fs):
     WinSec = 1.6
     RGB = rgb_process_video(frames)
     N = RGB.shape[0]
@@ -91,7 +91,7 @@ def generate_psuedo_labels(data_dict):
 
     # GENERATE POS PPG SIGNAL
     fs = 25 # bp4d sampling rate: 25hz
-    bvp = POS_WANG(x, fs) # generate POS PPG signal
+    bvp = POS_WANG_No_Filter(x, fs) # generate POS PPG signal
     bvp = np.array(bvp)
 
     # AGGRESSIVELY FILTER PPG SIGNAL
@@ -701,7 +701,7 @@ def multi_process_manager(data_dirs, config_preprocess):
 # NOTE: Subjet F082 is missing trial 1
 # NOTE: Subject F042 has an additional trial, trial 11 (weird!)
 # Get all data files and some meta data
-def get_data(data_path):
+def get_data(config_preprocess):
     """Returns data directories under the path(For PURE dataset)."""
 
     data_path = config_preprocess['RAW_DATA_PATH'] # get raw data path
