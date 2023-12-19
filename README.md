@@ -1,4 +1,4 @@
-# BigSmall
+# BigSmall: Deprecated Code Base
 BigSmall: Efficient Multi-Task Learning for Disparate Spatial and Temporal Physiological Measurements
 
 [Pre-print](https://arxiv.org/abs/2303.11573) | [Project Website](https://girishvn.github.io/BigSmall/)
