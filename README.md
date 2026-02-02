@@ -1,7 +1,10 @@
 # BigSmall
 BigSmall: Efficient Multi-Task Learning for Disparate Spatial and Temporal Physiological Measurements
 
-[Pre-print](https://arxiv.org/abs/2303.11573) | [Project Website](https://girishvn.github.io/BigSmall/)
+**UPDATE:** This repository is no longer maintaned.  
+The most up-to-date version of BigSmall can be found as part of the [rPPG-Toolbox](https://github.com/ubicomplab/rPPG-Toolbox). Thanks!
+
+[WACV '24 Paper](https://openaccess.thecvf.com/content/WACV2024/papers/Narayanswamy_BigSmall_Efficient_Multi-Task_Learning_for_Disparate_Spatial_and_Temporal_Physiological_WACV_2024_paper.pdf) | [Project Website](https://girishvn.github.io/BigSmall/)
 
 <img src="./static/videos/bigsmall_ex1.gif" width="600"/>
 
@@ -33,11 +36,12 @@ The code has a seperate ReadMe w/ a more comprehensive explanation of how to use
 Please make sure to cite our work if you find it of use. Thanks!
 
 ```
-@article{narayanswamy2023bigsmall,
-  title={BigSmall: Efficient Multi-Task Learning for Disparate Spatial and Temporal Physiological Measurements},
+@inproceedings{narayanswamy2024bigsmall,
+  title={Bigsmall: Efficient multi-task learning for disparate spatial and temporal physiological measurements},
   author={Narayanswamy, Girish and Liu, Yujia and Yang, Yuzhe and Ma, Chengqian and Liu, Xin and McDuff, Daniel and Patel, Shwetak},
-  journal={arXiv preprint arXiv:2303.11573},
-  year={2023}
+  booktitle={Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision},
+  pages={7914--7924},
+  year={2024}
 }
 ```
 
